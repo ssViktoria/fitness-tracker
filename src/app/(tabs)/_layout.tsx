@@ -1,3 +1,4 @@
+import "@/global.css";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useColorScheme } from "react-native";

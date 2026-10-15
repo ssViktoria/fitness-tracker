@@ -33,7 +33,8 @@
           "imageWidth": 76
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,
