@@ -4,7 +4,6 @@ import Svg, { Circle } from "react-native-svg";
 import Animated, {
   Easing,
   cancelAnimation,
-  runOnJS,
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
@@ -15,7 +14,7 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import { useAudioPlayer } from "expo-audio";
 
-// Звук лежить у assets/sounds/timer-end.wav (корінь проєкту, поруч із src)
+// Звук завершення відпочинку: assets/sounds/timer-end.wav (корінь проєкту, поруч із src)
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const END_SOUND = require("../../assets/sounds/timer-end.wav");
 
@@ -27,6 +26,8 @@ const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const PRESETS = [30, 60, 90] as const;
 
+type Phase = "idle" | "running" | "done";
+
 type Props = {
   /** Викликається, коли відпочинок завершився */
   onFinish?: () => void;
@@ -35,8 +36,12 @@ type Props = {
   textColor?: string;
 };
 
-const fmt = (s: number) =>
-  `${Math.floor(s / 60)}:${String(Math.max(s, 0) % 60).padStart(2, "0")}`;
+// Вібрація не існує у вебі, тому будь-яку помилку ігноруємо
+const buzz = (run: () => Promise<void>) => {
+  try {
+    run().catch(() => {});
+  } catch {}
+};
 
 export function RestTimer({
   onFinish,
@@ -45,65 +50,81 @@ export function RestTimer({
   textColor = "#f9fafb",
 }: Props) {
   const player = useAudioPlayer(END_SOUND);
-  const progress = useSharedValue(0); // 0 → 1
+  // 1 = кільце порожнє, 0 = кільце повне. Під час відпочинку 0 → 1 (кільце спорожніє).
+  const progress = useSharedValue(1);
   const scale = useSharedValue(1);
-  const [total, setTotal] = useState(0);
-  const [left, setLeft] = useState(0);
-  const [running, setRunning] = useState(false);
-  const endsAt = useRef(0);
 
-  // 6.5: звук + вібрація + «вибух» масштабу 1.2 → 1.0
-  const handleFinished = useCallback(() => {
-    setRunning(false);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [left, setLeft] = useState(0);
+  const endsAt = useRef(0);
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
+
+  useEffect(
+    () => () => {
+      if (doneTimer.current) clearTimeout(doneTimer.current);
+    },
+    []
+  );
+
+  // Кінець відпочинку: «вибух» масштабу 1.2 → 1.0, звук і вібрація
+  const finish = useCallback(() => {
+    setPhase("done");
     setLeft(0);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    scale.value = withSequence(
+      withTiming(1.2, { duration: 120 }),
+      withSpring(1, { damping: 6, stiffness: 200 })
+    );
+    buzz(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
     try {
       player.seekTo(0);
       player.play();
     } catch {}
-    onFinish?.();
-  }, [player, onFinish]);
+    onFinishRef.current?.();
+    doneTimer.current = setTimeout(() => {
+      setPhase("idle");
+      progress.value = withTiming(1, { duration: 200 });
+    }, 2500);
+  }, [player, progress, scale]);
 
   const start = (seconds: number) => {
+    if (doneTimer.current) clearTimeout(doneTimer.current);
     cancelAnimation(progress);
-    progress.value = 0;
     scale.value = 1;
-    setTotal(seconds);
-    setLeft(seconds);
-    setRunning(true);
     endsAt.current = Date.now() + seconds * 1000;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    // 6.3: прогрес 0 → 1 повністю на UI-потоці
-    progress.value = withTiming(
-      1,
-      { duration: seconds * 1000, easing: Easing.linear },
-      (finished) => {
-        if (!finished) return;
-        scale.value = withSequence(
-          withTiming(1.2, { duration: 120 }),
-          withSpring(1, { damping: 6, stiffness: 200 })
-        );
-        runOnJS(handleFinished)();
-      }
+    setLeft(seconds);
+    setPhase("running");
+    // кільце: миттєво повне, потім плавно спорожніє на UI-потоці
+    progress.value = withSequence(
+      withTiming(0, { duration: 0 }),
+      withTiming(1, { duration: seconds * 1000, easing: Easing.linear })
     );
+    buzz(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
   };
 
   const stop = () => {
+    if (doneTimer.current) clearTimeout(doneTimer.current);
     cancelAnimation(progress);
-    progress.value = withTiming(0, { duration: 250 });
-    setRunning(false);
+    progress.value = withTiming(1, { duration: 250 });
+    setPhase("idle");
     setLeft(0);
   };
 
-  // Цифри оновлюємо в JS раз на 250 мс — на плавність кільця це не впливає
+  // Цифри та завершення рахуємо за годинником, тому не залежимо від колбеків анімації
   useEffect(() => {
-    if (!running) return;
+    if (phase !== "running") return;
     const id = setInterval(() => {
-      setLeft(Math.max(0, Math.ceil((endsAt.current - Date.now()) / 1000)));
-    }, 250);
+      const remaining = Math.ceil((endsAt.current - Date.now()) / 1000);
+      if (remaining <= 0) {
+        clearInterval(id);
+        finish();
+      } else {
+        setLeft(remaining);
+      }
+    }, 200);
     return () => clearInterval(id);
-  }, [running]);
+  }, [phase, finish]);
 
   const ringProps = useAnimatedProps(() => ({
     strokeDashoffset: CIRCUMFERENCE * progress.value,
@@ -135,14 +156,26 @@ export function RestTimer({
             animatedProps={ringProps}
           />
         </Svg>
+
         <View style={styles.center} pointerEvents="none">
-          <Text style={[styles.time, { color: textColor }]}>
-            {running || left > 0 ? fmt(left) : total ? "Готово!" : "Відпочинок"}
-          </Text>
+          {phase === "running" && (
+            <>
+              <Text style={[styles.seconds, { color: textColor }]}>{left}</Text>
+              <Text style={styles.unit}>сек</Text>
+            </>
+          )}
+          {phase === "done" && (
+            <Text style={[styles.word, { color: progressColor }]}>Готово!</Text>
+          )}
+          {phase === "idle" && (
+            <>
+              <Text style={[styles.word, { color: textColor }]}>Відпочинок</Text>
+              <Text style={styles.unit}>обери час</Text>
+            </>
+          )}
         </View>
       </Animated.View>
 
-      {/* 6.4: кнопки швидкого старту */}
       <View style={styles.buttons}>
         {PRESETS.map((s) => (
           <Pressable
@@ -155,7 +188,7 @@ export function RestTimer({
         ))}
       </View>
 
-      {running && (
+      {phase === "running" && (
         <Pressable onPress={stop} style={styles.skip}>
           <Text style={styles.skipText}>Пропустити</Text>
         </Pressable>
@@ -168,7 +201,9 @@ const styles = StyleSheet.create({
   container: { alignItems: "center", gap: 20 },
   ringWrap: { width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center" },
   center: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
-  time: { fontSize: 44, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  seconds: { fontSize: 72, fontWeight: "800", fontVariant: ["tabular-nums"], lineHeight: 80 },
+  word: { fontSize: 30, fontWeight: "800" },
+  unit: { fontSize: 16, color: "#9ca3af", marginTop: 2 },
   buttons: { flexDirection: "row", gap: 12 },
   btn: { backgroundColor: "#22c55e", paddingVertical: 12, paddingHorizontal: 22, borderRadius: 999 },
   btnText: { color: "#052e16", fontWeight: "700", fontSize: 16 },

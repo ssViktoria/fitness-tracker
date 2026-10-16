@@ -16,6 +16,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useDebounce } from "@/hooks/useDebounce";
 import { MuscleChips } from "./MuscleChips";
+import { ExerciseGif } from "./ExerciseGif";
 
 export type PickedExercise = {
   _id: Id<"exercises">;
@@ -90,6 +91,11 @@ export function ExercisePickerModal({ visible, addedIds, onPick, onClose }: Prop
                     }
                     className="mb-3 flex-row items-center rounded-2xl bg-surface p-4 dark:bg-surface-dark"
                   >
+                    <ExerciseGif
+                      gifUrl={item.gifUrl}
+                      resizeMode="cover"
+                      style={{ width: 64, height: 64, borderRadius: 12, marginRight: 12, overflow: "hidden" }}
+                    />
                     <View className="flex-1 pr-3">
                       <Text className="text-lg font-bold text-text dark:text-text-dark">
                         {item.title}

@@ -23,7 +23,7 @@ export default function WorkoutsScreen() {
   const [group, setGroup] = useState<string | undefined>();
   const debounced = useDebounce(search, 300);
 
-  const exercises = useQuery(api.exercises.list, {
+  const exercises = useQuery((api.exercises as any).list, {
     search: debounced || undefined,
     muscleGroup: group,
   });

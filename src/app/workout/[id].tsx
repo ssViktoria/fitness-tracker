@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -23,6 +23,7 @@ const LABELS: Record<string, string> = {
 function Centered({ children }: { children: React.ReactNode }) {
   return (
     <SafeAreaView className="flex-1 items-center justify-center bg-background p-6 dark:bg-background-dark">
+      <Stack.Screen options={{ headerShown: false }} />
       {children}
     </SafeAreaView>
   );
@@ -162,6 +163,8 @@ export default function ActiveWorkoutScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-background-dark" edges={["top", "bottom"]}>
+      {/* прибираємо білий системний заголовок: у екрана є власна шапка зі стрілкою «назад» */}
+      <Stack.Screen options={{ headerShown: false }} />
       <View style={{ flex: 1, width: "100%", maxWidth: 760, alignSelf: "center" }}>
         {/* шапка: назва, секундомір, тоннаж */}
         <View className="px-4 pb-3 pt-3">
