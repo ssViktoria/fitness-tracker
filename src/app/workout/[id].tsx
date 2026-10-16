@@ -10,6 +10,7 @@ import { SetRow } from "../../components/SetRow";
 import { SwipeableSetRow } from "../../components/SwipeableSetRow";
 import { DraggableList } from "../../components/DraggableList";
 import { RestTimer } from "../../components/RestTimer";
+import { MusicButton } from "../../components/MusicButton";
 import { useIsOnline } from "../../components/OfflineBanner";
 import { formatDuration, useStopwatch } from "../../hooks/useStopwatch";
 import { useTheme } from "../../hooks/useTheme";
@@ -328,6 +329,9 @@ export default function ActiveWorkoutScreen() {
             ))}
           </ScrollView>
         )}
+
+        {/* музика: відкриває Spotify із плейлистом */}
+        <MusicButton />
 
         {/* 6.3–6.5: таймер лишається змонтованим, щоб не скидатись при згортанні */}
         <View style={{ display: timerOpen ? "flex" : "none" }} className="items-center pb-3 pt-1">
