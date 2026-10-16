@@ -7,7 +7,6 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +14,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useTheme } from "@/hooks/useTheme";
+import { hapticLight, hapticSelect } from "@/utils/haptics";
 import { MuscleChips } from "./MuscleChips";
 import { ExerciseGif } from "./ExerciseGif";
 
@@ -36,7 +37,7 @@ const LABELS: Record<string, string> = {
 };
 
 export function ExercisePickerModal({ visible, addedIds, onPick, onClose }: Props) {
-  const dark = useColorScheme() === "dark";
+  const { c, muted, primary } = useTheme();
   const [search, setSearch] = useState("");
   const [group, setGroup] = useState<string | undefined>();
   const debounced = useDebounce(search, 300);
@@ -54,7 +55,13 @@ export function ExercisePickerModal({ visible, addedIds, onPick, onClose }: Prop
             <Text className="text-3xl font-bold text-text dark:text-text-dark">
               Додати вправу
             </Text>
-            <Pressable onPress={onClose} className="rounded-full bg-primary px-5 py-2.5">
+            <Pressable
+              onPress={() => {
+                hapticLight();
+                onClose();
+              }}
+              className="rounded-full bg-primary px-5 py-2.5"
+            >
               <Text className="font-semibold text-white">Готово</Text>
             </Pressable>
           </View>
@@ -63,17 +70,23 @@ export function ExercisePickerModal({ visible, addedIds, onPick, onClose }: Prop
             value={search}
             onChangeText={setSearch}
             placeholder="Пошук вправи..."
-            placeholderTextColor="#64748B"
+            placeholderTextColor={muted}
             autoCorrect={false}
             className="mx-4 mb-4 rounded-2xl bg-surface px-5 py-4 text-base dark:bg-surface-dark"
-            style={{ color: dark ? "#F1F5F9" : "#0F172A" }}
+            style={{ color: c.text }}
           />
 
-          <MuscleChips value={group} onChange={setGroup} />
+          <MuscleChips
+            value={group}
+            onChange={(g) => {
+              hapticSelect();
+              setGroup(g);
+            }}
+          />
 
           {exercises === undefined ? (
             <View className="flex-1 items-center justify-center">
-              <ActivityIndicator size="large" color="#22C55E" />
+              <ActivityIndicator size="large" color={primary} />
             </View>
           ) : (
             <FlatList
@@ -107,7 +120,7 @@ export function ExercisePickerModal({ visible, addedIds, onPick, onClose }: Prop
                     <Ionicons
                       name={added ? "checkmark-circle" : "add-circle-outline"}
                       size={28}
-                      color="#22C55E"
+                      color={primary}
                     />
                   </Pressable>
                 );

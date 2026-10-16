@@ -10,7 +10,10 @@ import { SetRow } from "../../components/SetRow";
 import { SwipeableSetRow } from "../../components/SwipeableSetRow";
 import { DraggableList } from "../../components/DraggableList";
 import { RestTimer } from "../../components/RestTimer";
+import { useIsOnline } from "../../components/OfflineBanner";
 import { formatDuration, useStopwatch } from "../../hooks/useStopwatch";
+import { useTheme } from "../../hooks/useTheme";
+import { hapticError, hapticLight, hapticSelect, hapticSuccess } from "../../utils/haptics";
 import { calcTonnage, parseSet, type ExerciseBlock, type SetDraft } from "../../utils/workout";
 
 // uid потрібен для drag-and-drop: стабільний ідентифікатор блоку вправи
@@ -32,6 +35,8 @@ function Centered({ children }: { children: React.ReactNode }) {
 export default function ActiveWorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { primary, muted } = useTheme();
+  const online = useIsOnline();
   const workout = useQuery(api.workouts.getWithExercises, { id: id as Id<"workouts"> });
   const complete = useMutation(api.workouts.complete);
 
@@ -83,7 +88,8 @@ export default function ActiveWorkoutScreen() {
     );
   };
 
-  const addSet = (bi: number) =>
+  const addSet = (bi: number) => {
+    hapticLight();
     setBlocks((prev) =>
       prev
         ? prev.map((b, i) => {
@@ -96,10 +102,17 @@ export default function ActiveWorkoutScreen() {
           })
         : prev
     );
+  };
+
+  const fail = (msg: string) => {
+    hapticError();
+    setError(msg);
+  };
 
   const finish = async () => {
     if (!blocks) return;
-    if (doneCount === 0) return setError("Познач хоча б один підхід виконаним");
+    if (!online) return fail("Немає з'єднання з інтернетом. Прогрес збережений на екрані, спробуй ще раз пізніше");
+    if (doneCount === 0) return fail("Познач хоча б один підхід виконаним");
 
     setFinishing(true);
     setError(null);
@@ -116,9 +129,10 @@ export default function ActiveWorkoutScreen() {
           }),
         })),
       });
+      hapticSuccess();
       router.replace("/");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не вдалося завершити тренування");
+      fail(e instanceof Error ? e.message : "Не вдалося завершити тренування");
       setFinishing(false);
     }
   };
@@ -126,7 +140,7 @@ export default function ActiveWorkoutScreen() {
   if (workout === undefined) {
     return (
       <Centered>
-        <ActivityIndicator size="large" color="#22C55E" />
+        <ActivityIndicator size="large" color={primary} />
       </Centered>
     );
   }
@@ -147,7 +161,7 @@ export default function ActiveWorkoutScreen() {
   if (workout.isCompleted) {
     return (
       <Centered>
-        <Ionicons name="checkmark-circle" size={64} color="#22C55E" />
+        <Ionicons name="checkmark-circle" size={64} color={primary} />
         <Text className="mt-3 text-xl font-bold text-text dark:text-text-dark">
           Тренування вже завершено
         </Text>
@@ -160,6 +174,8 @@ export default function ActiveWorkoutScreen() {
       </Centered>
     );
   }
+
+  const finishDisabled = finishing || blocks === null || !online;
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-background-dark" edges={["top", "bottom"]}>
@@ -174,7 +190,7 @@ export default function ActiveWorkoutScreen() {
               hitSlop={10}
               className="mr-3 rounded-full bg-surface p-2.5 dark:bg-surface-dark"
             >
-              <Ionicons name="chevron-back" size={22} color="#22C55E" />
+              <Ionicons name="chevron-back" size={22} color={primary} />
             </Pressable>
             <Text numberOfLines={1} className="flex-1 text-2xl font-bold text-text dark:text-text-dark">
               {workout.title}
@@ -182,32 +198,30 @@ export default function ActiveWorkoutScreen() {
 
             {/* 6.2: режим зміни порядку вправ */}
             <Pressable
-              onPress={() => setReorderMode((v) => !v)}
+              onPress={() => {
+                hapticSelect();
+                setReorderMode((v) => !v);
+              }}
               hitSlop={10}
               className={`ml-2 rounded-full p-2.5 ${
                 reorderMode ? "bg-primary" : "bg-surface dark:bg-surface-dark"
               }`}
             >
-              <Ionicons
-                name="swap-vertical"
-                size={22}
-                color={reorderMode ? "#fff" : "#22C55E"}
-              />
+              <Ionicons name="swap-vertical" size={22} color={reorderMode ? "#fff" : primary} />
             </Pressable>
 
             {/* 6.3: таймер відпочинку */}
             <Pressable
-              onPress={() => setTimerOpen((v) => !v)}
+              onPress={() => {
+                hapticSelect();
+                setTimerOpen((v) => !v);
+              }}
               hitSlop={10}
               className={`ml-2 rounded-full p-2.5 ${
                 timerOpen ? "bg-primary" : "bg-surface dark:bg-surface-dark"
               }`}
             >
-              <Ionicons
-                name="timer-outline"
-                size={22}
-                color={timerOpen ? "#fff" : "#22C55E"}
-              />
+              <Ionicons name="timer-outline" size={22} color={timerOpen ? "#fff" : primary} />
             </Pressable>
           </View>
 
@@ -235,7 +249,7 @@ export default function ActiveWorkoutScreen() {
 
         {blocks === null ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#22C55E" />
+            <ActivityIndicator size="large" color={primary} />
           </View>
         ) : reorderMode ? (
           <ScrollView
@@ -256,7 +270,7 @@ export default function ActiveWorkoutScreen() {
                   style={{ flex: 1 }}
                   className="flex-row items-center rounded-2xl bg-surface px-4 dark:bg-surface-dark"
                 >
-                  <Ionicons name="reorder-three" size={24} color="#9CA3AF" />
+                  <Ionicons name="reorder-three" size={24} color={muted} />
                   <Text
                     numberOfLines={1}
                     className="ml-3 flex-1 text-lg font-bold text-text dark:text-text-dark"
@@ -324,10 +338,8 @@ export default function ActiveWorkoutScreen() {
           {error && <Text className="mb-2 text-center text-danger">{error}</Text>}
           <Pressable
             onPress={finish}
-            disabled={finishing || blocks === null}
-            className={`items-center rounded-2xl bg-primary py-4 ${
-              finishing || blocks === null ? "opacity-60" : ""
-            }`}
+            disabled={finishDisabled}
+            className={`items-center rounded-2xl bg-primary py-4 ${finishDisabled ? "opacity-60" : ""}`}
           >
             {finishing ? (
               <ActivityIndicator color="#fff" />

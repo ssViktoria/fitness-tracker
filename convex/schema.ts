@@ -15,6 +15,11 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
     streakDays: v.optional(v.number()),
     avatarUrl: v.optional(v.string()),
+    weightKg: v.optional(v.number()),
+    heightCm: v.optional(v.number()),
+    birthYear: v.optional(v.number()),
+    avatarStorageId: v.optional(v.id("_storage")),
+    sex: v.optional(v.union(v.literal("male"), v.literal("female"))),
   }).index("email", ["email"]),
 
  exercises: defineTable({

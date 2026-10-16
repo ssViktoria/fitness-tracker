@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,9 +8,13 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { ExercisePickerModal, type PickedExercise } from "@/components/ExercisePickerModal";
 import { WorkoutExerciseRow, type DraftItem } from "@/components/WorkoutExerciseRow";
+import { useIsOnline } from "@/components/OfflineBanner";
+import { useTheme } from "@/hooks/useTheme";
+import { hapticError, hapticLight, hapticSuccess } from "@/utils/haptics";
 
 export default function CreateWorkoutScreen() {
-  const dark = useColorScheme() === "dark";
+  const { c, muted, primary } = useTheme();
+  const online = useIsOnline();
   const router = useRouter();
   const createWorkout = useMutation(api.workouts.create);
 
@@ -20,7 +24,13 @@ export default function CreateWorkoutScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fail = (msg: string) => {
+    hapticError();
+    setError(msg);
+  };
+
   const addExercise = (ex: PickedExercise) => {
+    hapticLight();
     setItems((prev) => [
       ...prev,
       {
@@ -39,16 +49,20 @@ export default function CreateWorkoutScreen() {
   const patchItem = (key: string, patch: Partial<DraftItem>) =>
     setItems((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
 
-  const removeItem = (key: string) =>
+  const removeItem = (key: string) => {
+    hapticLight();
     setItems((prev) => prev.filter((i) => i.key !== key));
+  };
 
   const save = async () => {
-    if (!title.trim()) return setError("Вкажіть назву тренування");
-    if (items.length === 0) return setError("Додайте хоча б одну вправу");
+    if (!online) return fail("Немає з'єднання з інтернетом");
+    if (!title.trim()) return fail("Вкажіть назву тренування");
+    if (items.length === 0) return fail("Додайте хоча б одну вправу");
     if (items.some((i) => i.sets < 1 || i.reps < 1)) {
-      return setError("Підходи й повторення мають бути більше нуля");
+      return fail("Підходи й повторення мають бути більше нуля");
     }
 
+    hapticLight();
     setSaving(true);
     setError(null);
     try {
@@ -64,10 +78,11 @@ export default function CreateWorkoutScreen() {
           weightKg: i.weightKg,
         })),
       });
+      hapticSuccess();
       if (router.canGoBack()) router.back();
       else router.replace("/");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не вдалося зберегти тренування");
+      fail(e instanceof Error ? e.message : "Не вдалося зберегти тренування");
     } finally {
       setSaving(false);
     }
@@ -82,7 +97,7 @@ export default function CreateWorkoutScreen() {
             hitSlop={10}
             className="mr-3 rounded-full bg-surface p-2.5 dark:bg-surface-dark"
           >
-            <Ionicons name="chevron-back" size={22} color="#22C55E" />
+            <Ionicons name="chevron-back" size={22} color={primary} />
           </Pressable>
           <Text className="text-3xl font-bold text-text dark:text-text-dark">
             Нове тренування
@@ -101,15 +116,15 @@ export default function CreateWorkoutScreen() {
               setError(null);
             }}
             placeholder="Назва (наприклад, День грудей)"
-            placeholderTextColor="#64748B"
+            placeholderTextColor={muted}
             maxLength={60}
             className="mb-4 rounded-2xl bg-surface px-5 py-4 text-base dark:bg-surface-dark"
-            style={{ color: dark ? "#F1F5F9" : "#0F172A" }}
+            style={{ color: c.text }}
           />
 
           {items.length === 0 ? (
             <View className="mb-3 items-center rounded-2xl border border-dashed border-text-muted/40 px-6 py-10">
-              <Ionicons name="barbell-outline" size={40} color="#64748B" />
+              <Ionicons name="barbell-outline" size={40} color={muted} />
               <Text className="mt-3 text-center text-base text-text-muted">
                 Ще немає вправ. Додай першу з каталогу.
               </Text>
@@ -126,10 +141,13 @@ export default function CreateWorkoutScreen() {
           )}
 
           <Pressable
-            onPress={() => setPickerOpen(true)}
+            onPress={() => {
+              hapticLight();
+              setPickerOpen(true);
+            }}
             className="mt-1 flex-row items-center justify-center rounded-2xl bg-surface py-4 dark:bg-surface-dark"
           >
-            <Ionicons name="add" size={22} color="#22C55E" />
+            <Ionicons name="add" size={22} color={primary} />
             <Text className="ml-2 text-base font-semibold text-primary">Додати вправу</Text>
           </Pressable>
         </ScrollView>
@@ -138,8 +156,8 @@ export default function CreateWorkoutScreen() {
           {error && <Text className="mb-2 text-center text-danger">{error}</Text>}
           <Pressable
             onPress={save}
-            disabled={saving}
-            className={`items-center rounded-2xl bg-primary py-4 ${saving ? "opacity-60" : ""}`}
+            disabled={saving || !online}
+            className={`items-center rounded-2xl bg-primary py-4 ${saving || !online ? "opacity-60" : ""}`}
           >
             {saving ? (
               <ActivityIndicator color="#fff" />

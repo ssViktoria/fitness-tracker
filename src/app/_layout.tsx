@@ -1,6 +1,5 @@
 import "@/global.css";
-import { ActivityIndicator, View } from "react-native";
-import { Platform } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SecureStore from "expo-secure-store";
@@ -8,6 +7,11 @@ import { ConvexReactClient, useConvexAuth } from "convex/react";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ReducedMotionConfig, ReduceMotion } from "react-native-reanimated";
+import { OfflineBanner } from "@/components/OfflineBanner";
+import { ErrorScreen } from "@/components/ErrorScreen";
+
+export const ErrorBoundary = ErrorScreen;
 
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
   unsavedChangesWarning: false,
@@ -57,12 +61,14 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <ReducedMotionConfig mode={ReduceMotion.Never} />
       <SafeAreaProvider>
         <ConvexAuthProvider
           client={convex}
           storage={Platform.OS === "web" ? undefined : secureStorage}
         >
           <StatusBar style="auto" />
+          <OfflineBanner />
           <RootNavigator />
         </ConvexAuthProvider>
       </SafeAreaProvider>

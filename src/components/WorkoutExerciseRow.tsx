@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Pressable, Text, TextInput, View, useColorScheme } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useTheme";
 
 export type DraftItem = {
   key: string;
@@ -27,7 +28,7 @@ function NumberField({
   decimal?: boolean;
   onChange: (n: number) => void;
 }) {
-  const dark = useColorScheme() === "dark";
+  const { c } = useTheme();
   const [text, setText] = useState(String(value));
 
   return (
@@ -45,7 +46,7 @@ function NumberField({
         }}
         onBlur={() => setText(String(value))}
         className="rounded-xl bg-background px-3 py-3 text-center text-base font-semibold dark:bg-background-dark"
-        style={{ color: dark ? "#F1F5F9" : "#0F172A" }}
+        style={{ color: c.text }}
       />
     </View>
   );

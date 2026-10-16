@@ -1,18 +1,52 @@
 import { query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 const DAY = 86_400_000;
-const KCAL_PER_MIN = 6; // груба оцінка для силового тренування
 
-const tonnageOf = (exs: { sets: number; reps: number; weightKg: number }[]) =>
+type Body = { weightKg: number; heightCm: number; age: number; sex: "male" | "female" };
+
+const DEFAULT: Body = { weightKg: 70, heightCm: 175, age: 25, sex: "male" };
+
+const bodyOf = (u: Doc<"users"> | null): Body => ({
+  weightKg: u?.weightKg ?? DEFAULT.weightKg,
+  heightCm: u?.heightCm ?? DEFAULT.heightCm,
+  age: u?.birthYear ? new Date().getFullYear() - u.birthYear : DEFAULT.age,
+  sex: u?.sex ?? DEFAULT.sex,
+});
+
+const plannedTonnage = (exs: { sets: number; reps: number; weightKg: number }[]) =>
   exs.reduce((s, e) => s + e.sets * e.reps * e.weightKg, 0);
+
+// фактичний тоннаж, який зберіг complete(); для старих записів лишається план
+const tonnageOf = (w: Doc<"workouts">) => {
+  const t = (w as { tonnage?: number }).tonnage;
+  return typeof t === "number" ? t : plannedTonnage(w.exercises);
+};
+
+// Mifflin-St Jeor, ккал/добу
+const bmrOf = (b: Body) =>
+  10 * b.weightKg + 6.25 * b.heightCm - 5 * b.age + (b.sex === "male" ? 5 : -161);
+
+// MET росте з інтенсивністю: кг піднято за хвилину на кг ваги тіла
+const metOf = (tonnage: number, minutes: number, b: Body) => {
+  const intensity = tonnage / (Math.max(minutes, 1) * b.weightKg);
+  return Math.min(8, Math.max(3, 3 + intensity * 0.35));
+};
+
+const caloriesOf = (w: Doc<"workouts">, b: Body) => {
+  const met = metOf(tonnageOf(w), w.durationMinutes, b);
+  return Math.round(met * (bmrOf(b) / 24) * (w.durationMinutes / 60));
+};
 
 export const stats = query({
   args: { days: v.number(), tzOffset: v.number() },
   handler: async (ctx, { days, tzOffset }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
+
+    const body = bodyOf(await ctx.db.get(userId));
 
     const shift = -tzOffset * 60_000;
     const todayKey = Math.floor((Date.now() + shift) / DAY) * DAY;
@@ -38,8 +72,8 @@ export const stats = query({
       const key = Math.floor((w.completedAt! + shift) / DAY) * DAY;
       const b = buckets.get(key);
       if (!b) continue;
-      const t = tonnageOf(w.exercises);
-      const c = Math.round(w.durationMinutes * KCAL_PER_MIN);
+      const t = Math.round(tonnageOf(w));
+      const c = caloriesOf(w, body);
       b.tonnage += t;
       b.calories += c;
       b.count += 1;
@@ -64,6 +98,8 @@ export const history = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
 
+    const body = bodyOf(await ctx.db.get(userId));
+
     const from = Date.now() - days * DAY;
     const workouts = (
       await ctx.db
@@ -81,8 +117,8 @@ export const history = query({
         title: w.title,
         completedAt: w.completedAt!,
         durationMinutes: w.durationMinutes,
-        tonnage: tonnageOf(w.exercises),
-        calories: Math.round(w.durationMinutes * KCAL_PER_MIN),
+        tonnage: Math.round(tonnageOf(w)),
+        calories: caloriesOf(w, body),
         exercises: await Promise.all(
           w.exercises.map(async (e) => ({
             title: (await ctx.db.get(e.exerciseId))?.title ?? "—",

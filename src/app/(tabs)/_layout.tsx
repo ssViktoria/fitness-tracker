@@ -1,20 +1,21 @@
-import "@/global.css";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useColorScheme } from "react-native";
+import { useTheme } from "@/hooks/useTheme";
+import { hapticSelect } from "@/utils/haptics";
 
 export default function TabsLayout() {
-  const dark = useColorScheme() === "dark";
+  const { c, muted, primary } = useTheme();
 
   return (
     <Tabs
+      screenListeners={{ tabPress: () => hapticSelect() }}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#22C55E",
-        tabBarInactiveTintColor: "#64748B",
+        tabBarActiveTintColor: primary,
+        tabBarInactiveTintColor: muted,
         tabBarStyle: {
-          backgroundColor: dark ? "#1E293B" : "#FFFFFF",
-          borderTopColor: dark ? "#334155" : "#E2E8F0",
+          backgroundColor: c.surface,
+          borderTopColor: c.border,
         },
       }}
     >
@@ -45,6 +46,16 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+  name="profile"
+  options={{
+    title: "Профіль",
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons name="person" size={size} color={color} />
+    ),
+  }}
+/>
     </Tabs>
+    
   );
 }

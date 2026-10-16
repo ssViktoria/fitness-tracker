@@ -13,6 +13,7 @@ import type * as auth from "../auth.js";
 import type * as exercises from "../exercises.js";
 import type * as http from "../http.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as profile from "../profile.js";
 import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 import type * as workouts from "../workouts.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   exercises: typeof exercises;
   http: typeof http;
   "lib/auth": typeof lib_auth;
+  profile: typeof profile;
   seed: typeof seed;
   users: typeof users;
   workouts: typeof workouts;

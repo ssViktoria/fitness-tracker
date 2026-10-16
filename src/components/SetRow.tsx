@@ -1,6 +1,8 @@
-import { Pressable, Text, TextInput, View, useColorScheme } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { parseSet, type SetDraft } from "@/utils/workout";
+import { useTheme } from "@/hooks/useTheme";
+import { hapticError, hapticLight } from "@/utils/haptics";
 
 type Props = {
   index: number;
@@ -9,9 +11,8 @@ type Props = {
 };
 
 export function SetRow({ index, set, onChange }: Props) {
-  const dark = useColorScheme() === "dark";
+  const { c, muted } = useTheme();
   const parsed = parseSet(set);
-  const textColor = dark ? "#F1F5F9" : "#0F172A";
 
   const inputClass = (valid: boolean) =>
     `rounded-xl px-3 py-3 text-center text-base font-semibold ${
@@ -20,7 +21,11 @@ export function SetRow({ index, set, onChange }: Props) {
 
   const toggleDone = () => {
     // не даємо відзначити підхід із некоректними значеннями
-    if (!set.done && !parsed.valid) return;
+    if (!set.done && !parsed.valid) {
+      hapticError();
+      return;
+    }
+    hapticLight();
     onChange({ done: !set.done });
   };
 
@@ -41,12 +46,12 @@ export function SetRow({ index, set, onChange }: Props) {
           keyboardType="decimal-pad"
           selectTextOnFocus
           placeholder="кг"
-          placeholderTextColor="#64748B"
+          placeholderTextColor={muted}
           onChangeText={(t) =>
             onChange({ weight: t.replace(",", ".").replace(/[^0-9.]/g, "") })
           }
           className={inputClass(parsed.weightValid)}
-          style={{ color: textColor }}
+          style={{ color: c.text }}
         />
       </View>
 
@@ -59,10 +64,10 @@ export function SetRow({ index, set, onChange }: Props) {
           keyboardType="number-pad"
           selectTextOnFocus
           placeholder="повт."
-          placeholderTextColor="#64748B"
+          placeholderTextColor={muted}
           onChangeText={(t) => onChange({ reps: t.replace(/[^0-9]/g, "") })}
           className={inputClass(parsed.repsValid)}
-          style={{ color: textColor }}
+          style={{ color: c.text }}
         />
       </View>
 
@@ -73,11 +78,7 @@ export function SetRow({ index, set, onChange }: Props) {
           set.done ? "bg-primary" : "bg-background dark:bg-background-dark"
         } ${!set.done && !parsed.valid ? "opacity-40" : ""}`}
       >
-        <Ionicons
-          name="checkmark"
-          size={24}
-          color={set.done ? "#fff" : "#64748B"}
-        />
+        <Ionicons name="checkmark" size={24} color={set.done ? "#fff" : muted} />
       </Pressable>
     </View>
   );
