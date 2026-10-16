@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { SetRow } from "../../components/SetRow";
@@ -11,10 +11,10 @@ import { SwipeableSetRow } from "../../components/SwipeableSetRow";
 import { DraggableList } from "../../components/DraggableList";
 import { RestTimer } from "../../components/RestTimer";
 import { MusicButton } from "../../components/MusicButton";
-import { useIsOnline } from "../../components/OfflineBanner";
+import { useOfflineMutation } from "../../hooks/useOfflineMutation";
 import { formatDuration, useStopwatch } from "../../hooks/useStopwatch";
 import { useTheme } from "../../hooks/useTheme";
-import { hapticError, hapticLight, hapticSelect, hapticSuccess } from "../../utils/haptics";
+import { hapticError, hapticLight, hapticSelect } from "../../utils/haptics";
 import { calcTonnage, parseSet, type ExerciseBlock, type SetDraft } from "../../utils/workout";
 
 // uid потрібен для drag-and-drop: стабільний ідентифікатор блоку вправи
@@ -37,9 +37,9 @@ export default function ActiveWorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { primary, muted } = useTheme();
-  const online = useIsOnline();
   const workout = useQuery(api.workouts.getWithExercises, { id: id as Id<"workouts"> });
-  const complete = useMutation(api.workouts.complete);
+  // B.2: без мережі виклик потрапляє в чергу і відправиться сам, коли мережа з'явиться
+  const complete = useOfflineMutation(api.workouts.complete);
 
   const [blocks, setBlocks] = useState<Block[] | null>(null);
   const [finishing, setFinishing] = useState(false);
@@ -111,14 +111,13 @@ export default function ActiveWorkoutScreen() {
   };
 
   const finish = async () => {
-    if (!blocks) return;
-    if (!online) return fail("Немає з'єднання з інтернетом. Прогрес збережений на екрані, спробуй ще раз пізніше");
+    if (!blocks || !workout) return;
     if (doneCount === 0) return fail("Познач хоча б один підхід виконаним");
 
     setFinishing(true);
     setError(null);
     try {
-      await complete({
+      const r = await complete({
         id: id as Id<"workouts">,
         durationSeconds: seconds,
         tzOffsetMinutes: new Date().getTimezoneOffset(),
@@ -130,8 +129,19 @@ export default function ActiveWorkoutScreen() {
           }),
         })),
       });
-      hapticSuccess();
-      router.replace("/");
+
+      // B.1 + B.3: екран підсумку з конфеті й карткою для Stories
+      router.replace({
+        pathname: "/workout/summary",
+        params: {
+          title: workout.title,
+          tonnage: String(Math.round(tonnage * 10) / 10),
+          durationMinutes: String(Math.max(1, Math.round(seconds / 60))),
+          exercises: String(blocks.filter((b) => b.sets.some((s) => s.done)).length),
+          sets: String(doneCount),
+          offline: r.queued ? "1" : "0",
+        },
+      });
     } catch (e) {
       fail(e instanceof Error ? e.message : "Не вдалося завершити тренування");
       setFinishing(false);
@@ -176,7 +186,7 @@ export default function ActiveWorkoutScreen() {
     );
   }
 
-  const finishDisabled = finishing || blocks === null || !online;
+  const finishDisabled = finishing || blocks === null;
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-background-dark" edges={["top", "bottom"]}>

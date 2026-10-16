@@ -11,6 +11,7 @@ import { ReducedMotionConfig, ReduceMotion } from "react-native-reanimated";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { SettingsProvider } from "@/i18n/SettingsProvider";
+import { OfflineSyncProvider } from "@/hooks/useOfflineSync";
 import { useTheme } from "@/hooks/useTheme";
 
 export const ErrorBoundary = ErrorScreen;
@@ -50,6 +51,11 @@ function RootNavigator() {
           name="workout/create"
           options={{ headerShown: true, title: "Нове тренування", presentation: "modal" }}
         />
+        {/* B.1 + B.3: підсумок тренування з конфеті й карткою для Stories */}
+        <Stack.Screen
+          name="workout/summary"
+          options={{ headerShown: false, gestureEnabled: false, animation: "fade" }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!isAuthenticated}>
         <Stack.Screen name="(auth)" />
@@ -65,9 +71,12 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <SettingsProvider>
           <ConvexAuthProvider client={convex} storage={Platform.OS === "web" ? undefined : secureStorage}>
-            <ThemedStatusBar />
-            <OfflineBanner />
-            <RootNavigator />
+            {/* B.2: відправляє офлайн-чергу, коли з'являється мережа */}
+            <OfflineSyncProvider>
+              <ThemedStatusBar />
+              <OfflineBanner />
+              <RootNavigator />
+            </OfflineSyncProvider>
           </ConvexAuthProvider>
         </SettingsProvider>
       </SafeAreaProvider>
