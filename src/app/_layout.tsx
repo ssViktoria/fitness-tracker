@@ -10,6 +10,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ReducedMotionConfig, ReduceMotion } from "react-native-reanimated";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ErrorScreen } from "@/components/ErrorScreen";
+import { SettingsProvider } from "@/i18n/SettingsProvider";
+import { useTheme } from "@/hooks/useTheme";
 
 export const ErrorBoundary = ErrorScreen;
 
@@ -22,6 +24,11 @@ const secureStorage = {
   setItem: SecureStore.setItemAsync,
   removeItem: SecureStore.deleteItemAsync,
 };
+
+function ThemedStatusBar() {
+  const { dark } = useTheme();
+  return <StatusBar style={dark ? "light" : "dark"} />;
+}
 
 function RootNavigator() {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -38,17 +45,10 @@ function RootNavigator() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={isAuthenticated}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="workout/[id]"
-          options={{ headerShown: true, title: "Тренування" }}
-        />
+        <Stack.Screen name="workout/[id]" options={{ headerShown: true, title: "Тренування" }} />
         <Stack.Screen
           name="workout/create"
-          options={{
-            headerShown: true,
-            title: "Нове тренування",
-            presentation: "modal",
-          }}
+          options={{ headerShown: true, title: "Нове тренування", presentation: "modal" }}
         />
       </Stack.Protected>
       <Stack.Protected guard={!isAuthenticated}>
@@ -63,14 +63,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ReducedMotionConfig mode={ReduceMotion.Never} />
       <SafeAreaProvider>
-        <ConvexAuthProvider
-          client={convex}
-          storage={Platform.OS === "web" ? undefined : secureStorage}
-        >
-          <StatusBar style="auto" />
-          <OfflineBanner />
-          <RootNavigator />
-        </ConvexAuthProvider>
+        <SettingsProvider>
+          <ConvexAuthProvider client={convex} storage={Platform.OS === "web" ? undefined : secureStorage}>
+            <ThemedStatusBar />
+            <OfflineBanner />
+            <RootNavigator />
+          </ConvexAuthProvider>
+        </SettingsProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

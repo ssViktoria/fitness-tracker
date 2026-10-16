@@ -18,10 +18,11 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { api } from "../../../convex/_generated/api";
 import { useTheme } from "@/hooks/useTheme";
+import { useSettings } from "@/i18n/SettingsProvider";
+import { SettingsPanel } from "@/components/SettingsPanel";
 import { useIsOnline } from "@/components/OfflineBanner";
 import { hapticError, hapticLight, hapticSelect, hapticSuccess } from "@/utils/haptics";
 
-const fmt = (n: number) => n.toLocaleString("uk-UA");
 const num = (s: string) => (s.trim() ? parseFloat(s) : undefined);
 
 function Stat({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
@@ -37,6 +38,7 @@ function Stat({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; la
 
 export default function ProfileScreen() {
   const { c, muted, primary } = useTheme();
+  const { t, locale } = useSettings();
   const online = useIsOnline();
   const { signOut } = useAuthActions();
   const profile = useQuery(api.profile.get);
@@ -71,6 +73,8 @@ export default function ProfileScreen() {
   }
   if (profile === null) return null;
 
+  const fmt = (n: number) => n.toLocaleString(locale);
+
   const dirty =
     name.trim() !== profile.name ||
     weight !== (profile.weightKg ? String(profile.weightKg) : "") ||
@@ -81,24 +85,24 @@ export default function ProfileScreen() {
   const save = async () => {
     if (!online) {
       hapticError();
-      return setMsg({ text: "Немає з'єднання з інтернетом", ok: false });
+      return setMsg({ text: t("common.offline"), ok: false });
     }
     const w = num(weight);
     const h = num(height);
     const by = num(birthYear);
     if ([w, h, by].some((x) => x !== undefined && !Number.isFinite(x))) {
       hapticError();
-      return setMsg({ text: "Некоректні значення", ok: false });
+      return setMsg({ text: t("profile.invalid"), ok: false });
     }
     setSaving(true);
     setMsg(null);
     try {
       await update({ name, weightKg: w, heightCm: h, birthYear: by, sex });
       hapticSuccess();
-      setMsg({ text: "Збережено", ok: true });
+      setMsg({ text: t("common.saved"), ok: true });
     } catch (e) {
       hapticError();
-      setMsg({ text: e instanceof Error ? e.message : "Не вдалося зберегти", ok: false });
+      setMsg({ text: e instanceof Error ? e.message : t("profile.saveFail"), ok: false });
     } finally {
       setSaving(false);
     }
@@ -107,7 +111,7 @@ export default function ProfileScreen() {
   const pickAvatar = async () => {
     if (!online) {
       hapticError();
-      return setMsg({ text: "Немає з'єднання з інтернетом", ok: false });
+      return setMsg({ text: t("common.offline"), ok: false });
     }
     hapticLight();
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -129,13 +133,13 @@ export default function ProfileScreen() {
         headers: { "Content-Type": asset.mimeType ?? blob.type ?? "image/jpeg" },
         body: blob,
       });
-      if (!up.ok) throw new Error("Не вдалося завантажити фото");
+      if (!up.ok) throw new Error(t("profile.photoFail"));
       const { storageId } = await up.json();
       await setAvatar({ storageId });
       hapticSuccess();
     } catch (e) {
       hapticError();
-      setMsg({ text: e instanceof Error ? e.message : "Не вдалося завантажити фото", ok: false });
+      setMsg({ text: e instanceof Error ? e.message : t("profile.photoFail"), ok: false });
     } finally {
       setUploading(false);
     }
@@ -153,15 +157,18 @@ export default function ProfileScreen() {
   const logout = () => {
     hapticLight();
     if (Platform.OS === "web") return void signOut();
-    Alert.alert("Вийти з акаунта?", undefined, [
-      { text: "Скасувати", style: "cancel" },
-      { text: "Вийти", style: "destructive", onPress: () => void signOut() },
+    Alert.alert(t("profile.logoutTitle"), undefined, [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.logout"), style: "destructive", onPress: () => void signOut() },
     ]);
   };
 
   const hours = Math.floor(profile.minutes / 60);
   const mins = profile.minutes % 60;
-  const since = new Date(profile.since).toLocaleDateString("uk-UA", { month: "long", year: "numeric" });
+  const totalTime = hours
+    ? `${hours} ${t("unit.h")} ${mins} ${t("unit.min")}`
+    : `${mins} ${t("unit.min")}`;
+  const since = new Date(profile.since).toLocaleDateString(locale, { month: "long", year: "numeric" });
 
   const inputClass = "rounded-2xl bg-surface px-5 py-4 text-base dark:bg-surface-dark";
   const labelClass = "mb-1 mt-4 text-sm font-medium text-text dark:text-text-dark";
@@ -200,76 +207,79 @@ export default function ProfileScreen() {
             </Pressable>
             {profile.avatarUrl && (
               <Pressable onPress={removeAvatar} hitSlop={8} className="mt-2">
-                <Text className="text-xs text-danger">Видалити фото</Text>
+                <Text className="text-xs text-danger">{t("profile.removePhoto")}</Text>
               </Pressable>
             )}
             <Text className="mt-3 text-2xl font-bold text-text dark:text-text-dark">
-              {profile.name || "Без імені"}
+              {profile.name || t("profile.noName")}
             </Text>
             <Text className="text-text-muted">{profile.email}</Text>
-            <Text className="mt-1 text-xs text-text-muted">З нами з {since}</Text>
+            <Text className="mt-1 text-xs text-text-muted">{t("profile.since", { date: since })}</Text>
           </View>
 
           <View className="mb-3 flex-row gap-3">
-            <Stat icon="flame" label="Стрік, днів" value={String(profile.streakDays)} />
-            <Stat icon="barbell" label="Тренувань" value={String(profile.workouts)} />
+            <Stat icon="flame" label={t("profile.streak")} value={String(profile.streakDays)} />
+            <Stat icon="barbell" label={t("profile.workouts")} value={String(profile.workouts)} />
           </View>
           <View className="mb-6 flex-row gap-3">
-            <Stat icon="trending-up" label="Піднято, кг" value={fmt(profile.tonnage)} />
-            <Stat icon="time" label="Загальний час" value={hours ? `${hours} г ${mins} хв` : `${mins} хв`} />
+            <Stat icon="trending-up" label={t("profile.lifted")} value={fmt(profile.tonnage)} />
+            <Stat icon="time" label={t("profile.totalTime")} value={totalTime} />
           </View>
 
-          <Text className="text-xl font-bold text-text dark:text-text-dark">Дані профілю</Text>
+          <Text className="mb-3 text-xl font-bold text-text dark:text-text-dark">{t("settings.title")}</Text>
+          <SettingsPanel />
 
-          <Text className={labelClass}>Ім'я</Text>
+          <Text className="text-xl font-bold text-text dark:text-text-dark">{t("profile.data")}</Text>
+
+          <Text className={labelClass}>{t("profile.name")}</Text>
           <TextInput
             value={name}
-            onChangeText={(t) => { setName(t); setMsg(null); }}
+            onChangeText={(v) => { setName(v); setMsg(null); }}
             maxLength={40}
-            placeholder="Ваше ім'я"
+            placeholder={t("profile.namePh")}
             placeholderTextColor={muted}
             className={inputClass}
             style={{ color: c.text }}
           />
 
-          <Text className={labelClass}>Вага тіла, кг</Text>
+          <Text className={labelClass}>{t("profile.weight")}</Text>
           <TextInput
             value={weight}
-            onChangeText={(t) => { setWeight(t.replace(",", ".").replace(/[^0-9.]/g, "")); setMsg(null); }}
+            onChangeText={(v) => { setWeight(v.replace(",", ".").replace(/[^0-9.]/g, "")); setMsg(null); }}
             keyboardType="decimal-pad"
-            placeholder="Наприклад, 75"
+            placeholder={t("profile.weightPh")}
             placeholderTextColor={muted}
             className={inputClass}
             style={{ color: c.text }}
           />
 
-          <Text className={labelClass}>Ріст, см</Text>
+          <Text className={labelClass}>{t("profile.height")}</Text>
           <TextInput
             value={height}
-            onChangeText={(t) => { setHeight(t.replace(/[^0-9]/g, "")); setMsg(null); }}
+            onChangeText={(v) => { setHeight(v.replace(/[^0-9]/g, "")); setMsg(null); }}
             keyboardType="number-pad"
             maxLength={3}
-            placeholder="Наприклад, 180"
+            placeholder={t("profile.heightPh")}
             placeholderTextColor={muted}
             className={inputClass}
             style={{ color: c.text }}
           />
 
-          <Text className={labelClass}>Рік народження</Text>
+          <Text className={labelClass}>{t("profile.birthYear")}</Text>
           <TextInput
             value={birthYear}
-            onChangeText={(t) => { setBirthYear(t.replace(/[^0-9]/g, "")); setMsg(null); }}
+            onChangeText={(v) => { setBirthYear(v.replace(/[^0-9]/g, "")); setMsg(null); }}
             keyboardType="number-pad"
             maxLength={4}
-            placeholder="Наприклад, 2003"
+            placeholder={t("profile.birthYearPh")}
             placeholderTextColor={muted}
             className={inputClass}
             style={{ color: c.text }}
           />
 
-          <Text className={labelClass}>Стать</Text>
+          <Text className={labelClass}>{t("profile.sex")}</Text>
           <View className="flex-row gap-3">
-            {([["male", "Чоловік"], ["female", "Жінка"]] as const).map(([key, label]) => (
+            {([["male", t("profile.male")], ["female", t("profile.female")]] as const).map(([key, label]) => (
               <Pressable
                 key={key}
                 onPress={() => { hapticSelect(); setSex(key); setMsg(null); }}
@@ -283,7 +293,7 @@ export default function ProfileScreen() {
               </Pressable>
             ))}
           </View>
-          <Text className="mb-4 mt-2 text-xs text-text-muted">Використовується для підрахунку калорій</Text>
+          <Text className="mb-4 mt-2 text-xs text-text-muted">{t("profile.caloriesHint")}</Text>
 
           {msg && (
             <Text className={`mb-2 text-center ${msg.ok ? "text-primary" : "text-danger"}`}>{msg.text}</Text>
@@ -294,7 +304,11 @@ export default function ProfileScreen() {
             disabled={!dirty || saving || !online}
             className={`items-center rounded-2xl bg-primary py-4 ${!dirty || saving || !online ? "opacity-50" : ""}`}
           >
-            {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-lg font-bold text-white">Зберегти</Text>}
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text className="text-lg font-bold text-white">{t("common.save")}</Text>
+            )}
           </Pressable>
 
           <Pressable
@@ -302,7 +316,7 @@ export default function ProfileScreen() {
             className="mt-4 flex-row items-center justify-center rounded-2xl bg-surface py-4 dark:bg-surface-dark"
           >
             <Ionicons name="log-out-outline" size={22} color="#EF4444" />
-            <Text className="ml-2 text-base font-semibold text-danger">Вийти</Text>
+            <Text className="ml-2 text-base font-semibold text-danger">{t("common.logout")}</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

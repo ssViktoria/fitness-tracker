@@ -1,4 +1,4 @@
-import { useColorScheme } from "react-native";
+import { useColorScheme } from "nativewind";
 
 const palette = {
   light: { bg: "#F8FAFC", surface: "#FFFFFF", text: "#0F172A", border: "#E2E8F0" },
@@ -6,6 +6,7 @@ const palette = {
 };
 
 export function useTheme() {
-  const dark = useColorScheme() === "dark";
+  const { colorScheme } = useColorScheme();
+  const dark = colorScheme === "dark";
   return { dark, c: dark ? palette.dark : palette.light, muted: "#64748B", primary: "#22C55E" };
 }

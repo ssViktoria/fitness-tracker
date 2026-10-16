@@ -1,0 +1,106 @@
+export const uk = {
+  "tabs.home": "Головна",
+  "tabs.exercises": "Вправи",
+  "tabs.analytics": "Аналітика",
+  "tabs.profile": "Профіль",
+
+  "common.save": "Зберегти",
+  "common.saved": "Збережено",
+  "common.cancel": "Скасувати",
+  "common.logout": "Вийти",
+  "common.offline": "Немає з'єднання з інтернетом",
+
+  "unit.h": "г",
+  "unit.min": "хв",
+
+  "settings.title": "Налаштування",
+  "settings.theme": "Тема",
+  "settings.themeSystem": "Авто",
+  "settings.themeLight": "Світла",
+  "settings.themeDark": "Темна",
+  "settings.language": "Мова",
+
+  "home.athlete": "Атлет",
+  "home.streak": "🔥 {{n}} днів поспіль",
+
+  "profile.streak": "Стрік, днів",
+  "profile.workouts": "Тренувань",
+  "profile.lifted": "Піднято, кг",
+  "profile.totalTime": "Загальний час",
+  "profile.since": "З нами з {{date}}",
+  "profile.noName": "Без імені",
+  "profile.removePhoto": "Видалити фото",
+  "profile.data": "Дані профілю",
+  "profile.name": "Ім'я",
+  "profile.namePh": "Ваше ім'я",
+  "profile.weight": "Вага тіла, кг",
+  "profile.weightPh": "Наприклад, 75",
+  "profile.height": "Ріст, см",
+  "profile.heightPh": "Наприклад, 180",
+  "profile.birthYear": "Рік народження",
+  "profile.birthYearPh": "Наприклад, 2003",
+  "profile.sex": "Стать",
+  "profile.male": "Чоловік",
+  "profile.female": "Жінка",
+  "profile.caloriesHint": "Використовується для підрахунку калорій",
+  "profile.invalid": "Некоректні значення",
+  "profile.saveFail": "Не вдалося зберегти",
+  "profile.photoFail": "Не вдалося завантажити фото",
+  "profile.logoutTitle": "Вийти з акаунта?",
+};
+
+export type TKey = keyof typeof uk;
+
+export const en: Record<TKey, string> = {
+  "tabs.home": "Home",
+  "tabs.exercises": "Exercises",
+  "tabs.analytics": "Analytics",
+  "tabs.profile": "Profile",
+
+  "common.save": "Save",
+  "common.saved": "Saved",
+  "common.cancel": "Cancel",
+  "common.logout": "Log out",
+  "common.offline": "No internet connection",
+
+  "unit.h": "h",
+  "unit.min": "min",
+
+  "settings.title": "Settings",
+  "settings.theme": "Theme",
+  "settings.themeSystem": "Auto",
+  "settings.themeLight": "Light",
+  "settings.themeDark": "Dark",
+  "settings.language": "Language",
+
+  "home.athlete": "Athlete",
+  "home.streak": "🔥 {{n}} day streak",
+
+  "profile.streak": "Streak, days",
+  "profile.workouts": "Workouts",
+  "profile.lifted": "Lifted, kg",
+  "profile.totalTime": "Total time",
+  "profile.since": "Member since {{date}}",
+  "profile.noName": "No name",
+  "profile.removePhoto": "Remove photo",
+  "profile.data": "Profile data",
+  "profile.name": "Name",
+  "profile.namePh": "Your name",
+  "profile.weight": "Body weight, kg",
+  "profile.weightPh": "e.g. 75",
+  "profile.height": "Height, cm",
+  "profile.heightPh": "e.g. 180",
+  "profile.birthYear": "Birth year",
+  "profile.birthYearPh": "e.g. 2003",
+  "profile.sex": "Sex",
+  "profile.male": "Male",
+  "profile.female": "Female",
+  "profile.caloriesHint": "Used to calculate calories",
+  "profile.invalid": "Invalid values",
+  "profile.saveFail": "Failed to save",
+  "profile.photoFail": "Failed to upload photo",
+  "profile.logoutTitle": "Log out of your account?",
+};
+
+export type Lang = "uk" | "en";
+export const translations = { uk, en } as const;
