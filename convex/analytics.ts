@@ -19,13 +19,11 @@ const bodyOf = (u: Doc<"users"> | null): Body => ({
 const plannedTonnage = (exs: { sets: number; reps: number; weightKg: number }[]) =>
   exs.reduce((s, e) => s + e.sets * e.reps * e.weightKg, 0);
 
-// фактичний тоннаж, який зберіг complete(); для старих записів лишається план
 const tonnageOf = (w: Doc<"workouts">) => {
   const t = (w as { tonnage?: number }).tonnage;
   return typeof t === "number" ? t : plannedTonnage(w.exercises);
 };
 
-// Mifflin-St Jeor, ккал/добу
 const bmrOf = (b: Body) =>
   10 * b.weightKg + 6.25 * b.heightCm - 5 * b.age + (b.sex === "male" ? 5 : -161);
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -14,6 +14,9 @@ import { MusicButton } from "../../components/MusicButton";
 import { useOfflineMutation } from "../../hooks/useOfflineMutation";
 import { formatDuration, useStopwatch } from "../../hooks/useStopwatch";
 import { useTheme } from "../../hooks/useTheme";
+import { useWeightUnit } from "../../hooks/useWeightUnit";
+import { useSettings } from "../../i18n/SettingsProvider";
+import { formatWeight, fromUnit, round1, round2, toUnit, unitLabel, type WeightUnit } from "../../utils/units";
 import { hapticError, hapticLight, hapticSelect } from "../../utils/haptics";
 import { calcTonnage, parseSet, type ExerciseBlock, type SetDraft } from "../../utils/workout";
 
@@ -23,6 +26,14 @@ type Block = ExerciseBlock & { uid: string };
 const LABELS: Record<string, string> = {
   chest: "Груди", back: "Спина", legs: "Ноги", core: "Прес", arms: "Руки",
 };
+
+// перераховує текст ваги з однієї одиниці в іншу
+function convertWeightText(text: string, from: WeightUnit, to: WeightUnit) {
+  if (from === to) return text;
+  const n = parseFloat(text);
+  if (!text.trim() || !Number.isFinite(n)) return text;
+  return String(round1(toUnit(fromUnit(n, from), to)));
+}
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
@@ -37,6 +48,8 @@ export default function ActiveWorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { primary, muted } = useTheme();
+  const { locale } = useSettings();
+  const { unit } = useWeightUnit();
   const workout = useQuery(api.workouts.getWithExercises, { id: id as Id<"workouts"> });
   // B.2: без мережі виклик потрапляє в чергу і відправиться сам, коли мережа з'явиться
   const complete = useOfflineMutation(api.workouts.complete);
@@ -47,9 +60,13 @@ export default function ActiveWorkoutScreen() {
   const [reorderMode, setReorderMode] = useState(false); // 6.2
   const [timerOpen, setTimerOpen] = useState(false); // 6.3–6.5
 
+  // у якій одиниці зараз записана вага в blocks
+  const blocksUnit = useRef<WeightUnit>(unit);
+
   // ініціалізуємо підходи один раз, коли тренування завантажилось
   useEffect(() => {
     if (!workout || blocks !== null || workout.isCompleted) return;
+    blocksUnit.current = unit;
     setBlocks(
       workout.items.map((it, idx) => ({
         uid: `${it.exerciseId}-${idx}`,
@@ -57,16 +74,36 @@ export default function ActiveWorkoutScreen() {
         title: it.title,
         muscleGroup: it.muscleGroup,
         sets: Array.from({ length: it.sets }, () => ({
-          weight: String(it.weightKg),
+          // у базі вага в кг, у полі показуємо у вибраній одиниці
+          weight: String(round1(toUnit(it.weightKg, unit))),
           reps: String(it.reps),
           done: false,
         })),
       }))
     );
-  }, [workout, blocks]);
+  }, [workout, blocks, unit]);
+
+  // якщо одиницю змінили (або вона підвантажилась зі сховища) — перераховуємо поля
+  useEffect(() => {
+    if (blocks === null || blocksUnit.current === unit) return;
+    const from = blocksUnit.current;
+    blocksUnit.current = unit;
+    setBlocks((prev) =>
+      prev
+        ? prev.map((b) => ({
+            ...b,
+            sets: b.sets.map((s) => ({ ...s, weight: convertWeightText(s.weight, from, unit) })),
+          }))
+        : prev
+    );
+  }, [unit, blocks]);
 
   const seconds = useStopwatch(blocks !== null && !finishing);
-  const tonnage = useMemo(() => (blocks ? calcTonnage(blocks) : 0), [blocks]);
+  // тоннаж у кг (calcTonnage рахує у поточній одиниці, перетворення лінійне)
+  const tonnageKg = useMemo(
+    () => (blocks ? fromUnit(calcTonnage(blocks), unit) : 0),
+    [blocks, unit]
+  );
   const doneCount = useMemo(
     () => blocks?.reduce((n, b) => n + b.sets.filter((s) => s.done).length, 0) ?? 0,
     [blocks]
@@ -125,7 +162,8 @@ export default function ActiveWorkoutScreen() {
           exerciseId: b.exerciseId as Id<"exercises">,
           sets: b.sets.map((s) => {
             const p = parseSet(s);
-            return { weightKg: p.weightKg, reps: p.reps, done: s.done };
+            // у базу завжди кг
+            return { weightKg: round2(fromUnit(p.weightKg, unit)), reps: p.reps, done: s.done };
           }),
         })),
       });
@@ -135,7 +173,7 @@ export default function ActiveWorkoutScreen() {
         pathname: "/workout/summary",
         params: {
           title: workout.title,
-          tonnage: String(Math.round(tonnage * 10) / 10),
+          tonnage: String(round1(tonnageKg)), // кг
           durationMinutes: String(Math.max(1, Math.round(seconds / 60))),
           exercises: String(blocks.filter((b) => b.sets.some((s) => s.done)).length),
           sets: String(doneCount),
@@ -177,7 +215,7 @@ export default function ActiveWorkoutScreen() {
           Тренування вже завершено
         </Text>
         <Text className="mt-1 text-text-muted">
-          Піднято {Math.round(workout.tonnage ?? 0)} кг
+          Піднято {formatWeight(workout.tonnage ?? 0, unit, locale)}
         </Text>
         <Text onPress={() => router.replace("/")} className="mt-4 font-semibold text-primary">
           На головну
@@ -187,6 +225,7 @@ export default function ActiveWorkoutScreen() {
   }
 
   const finishDisabled = finishing || blocks === null;
+  const uLabel = unitLabel(unit, locale);
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-background-dark" edges={["top", "bottom"]}>
@@ -246,7 +285,7 @@ export default function ActiveWorkoutScreen() {
             <View className="flex-1 rounded-2xl bg-surface p-4 dark:bg-surface-dark">
               <Text className="text-xs font-semibold uppercase text-text-muted">Тоннаж</Text>
               <Text className="mt-1 text-2xl font-bold text-primary">
-                {Math.round(tonnage * 10) / 10} кг
+                {formatWeight(tonnageKg, unit, locale)}
               </Text>
             </View>
             <View className="flex-1 rounded-2xl bg-surface p-4 dark:bg-surface-dark">
@@ -327,6 +366,7 @@ export default function ActiveWorkoutScreen() {
                     <SetRow
                       index={si}
                       set={set}
+                      unitLabel={uLabel}
                       onChange={(patch: Partial<SetDraft>) => updateSet(bi, si, patch)}
                     />
                   </SwipeableSetRow>

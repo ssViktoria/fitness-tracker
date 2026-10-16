@@ -141,7 +141,7 @@ const EXERCISES = [
     gifUrl: "leg-raise",
   },
   {
-    title: "Російські скручування",
+    title: " скручування",
     muscleGroup: "core",
     description: "Сидячи з піднятими ногами, повертайте корпус із боку в бік.",
     gifUrl: "russian-twist",

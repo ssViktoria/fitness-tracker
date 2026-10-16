@@ -7,10 +7,11 @@ import { hapticError, hapticLight } from "@/utils/haptics";
 type Props = {
   index: number;
   set: SetDraft;
+  unitLabel?: string;
   onChange: (patch: Partial<SetDraft>) => void;
 };
 
-export function SetRow({ index, set, onChange }: Props) {
+export function SetRow({ index, set, unitLabel = "кг", onChange }: Props) {
   const { c, muted } = useTheme();
   const parsed = parseSet(set);
 
@@ -45,7 +46,7 @@ export function SetRow({ index, set, onChange }: Props) {
           editable={!set.done}
           keyboardType="decimal-pad"
           selectTextOnFocus
-          placeholder="кг"
+          placeholder={unitLabel}
           placeholderTextColor={muted}
           onChangeText={(t) =>
             onChange({ weight: t.replace(",", ".").replace(/[^0-9.]/g, "") })

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,7 +20,10 @@ import { api } from "../../../convex/_generated/api";
 import { useTheme } from "@/hooks/useTheme";
 import { useSettings } from "@/i18n/SettingsProvider";
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { Achievements } from "@/components/Achievements";
 import { useIsOnline } from "@/components/OfflineBanner";
+import { useWeightUnit } from "@/hooks/useWeightUnit";
+import { formatWeight, fromUnit, round1, round2, toUnit, unitLabel } from "@/utils/units";
 import { hapticError, hapticLight, hapticSelect, hapticSuccess } from "@/utils/haptics";
 
 const num = (s: string) => (s.trim() ? parseFloat(s) : undefined);
@@ -40,6 +43,7 @@ export default function ProfileScreen() {
   const { c, muted, primary } = useTheme();
   const { t, locale } = useSettings();
   const online = useIsOnline();
+  const { unit, setUnit } = useWeightUnit();
   const { signOut } = useAuthActions();
   const profile = useQuery(api.profile.get);
   const update = useMutation(api.profile.update);
@@ -55,14 +59,22 @@ export default function ProfileScreen() {
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
+  // вага з бази (кг) -> текст у вибраній одиниці
+  const weightText = (kg?: number | null) => (kg ? String(round1(toUnit(kg, unit))) : "");
+
   useEffect(() => {
     if (!profile) return;
     setName(profile.name);
-    setWeight(profile.weightKg ? String(profile.weightKg) : "");
     setHeight(profile.heightCm ? String(profile.heightCm) : "");
     setBirthYear(profile.birthYear ? String(profile.birthYear) : "");
     setSex(profile.sex ?? undefined);
-  }, [profile?.name, profile?.weightKg, profile?.heightCm, profile?.birthYear, profile?.sex]);
+  }, [profile?.name, profile?.heightCm, profile?.birthYear, profile?.sex]);
+
+  // вагу перераховуємо при зміні даних або одиниці
+  useEffect(() => {
+    if (!profile) return;
+    setWeight(weightText(profile.weightKg));
+  }, [profile?.weightKg, unit]);
 
   if (profile === undefined) {
     return (
@@ -73,11 +85,11 @@ export default function ProfileScreen() {
   }
   if (profile === null) return null;
 
-  const fmt = (n: number) => n.toLocaleString(locale);
+  const uk = locale.startsWith("uk");
 
   const dirty =
     name.trim() !== profile.name ||
-    weight !== (profile.weightKg ? String(profile.weightKg) : "") ||
+    weight !== weightText(profile.weightKg) ||
     height !== (profile.heightCm ? String(profile.heightCm) : "") ||
     birthYear !== (profile.birthYear ? String(profile.birthYear) : "") ||
     sex !== (profile.sex ?? undefined);
@@ -87,13 +99,15 @@ export default function ProfileScreen() {
       hapticError();
       return setMsg({ text: t("common.offline"), ok: false });
     }
-    const w = num(weight);
+    const wInput = num(weight);
     const h = num(height);
     const by = num(birthYear);
-    if ([w, h, by].some((x) => x !== undefined && !Number.isFinite(x))) {
+    if ([wInput, h, by].some((x) => x !== undefined && !Number.isFinite(x))) {
       hapticError();
       return setMsg({ text: t("profile.invalid"), ok: false });
     }
+    // у базі вага завжди в кг; 2 знаки, щоб при поверненні у фунти значення не «стрибало»
+    const w = wInput === undefined ? undefined : round2(fromUnit(wInput, unit));
     setSaving(true);
     setMsg(null);
     try {
@@ -222,12 +236,52 @@ export default function ProfileScreen() {
             <Stat icon="barbell" label={t("profile.workouts")} value={String(profile.workouts)} />
           </View>
           <View className="mb-6 flex-row gap-3">
-            <Stat icon="trending-up" label={t("profile.lifted")} value={fmt(profile.tonnage)} />
+            <Stat
+              icon="trending-up"
+              label={t("profile.lifted")}
+              value={formatWeight(profile.tonnage, unit, locale)}
+            />
             <Stat icon="time" label={t("profile.totalTime")} value={totalTime} />
           </View>
 
+          <Achievements
+            stats={{
+              workouts: profile.workouts,
+              streakDays: profile.streakDays,
+              tonnage: profile.tonnage,
+              minutes: profile.minutes,
+            }}
+            unit={unit}
+            locale={locale}
+          />
+
           <Text className="mb-3 text-xl font-bold text-text dark:text-text-dark">{t("settings.title")}</Text>
           <SettingsPanel />
+
+          <Text className="mb-2 mt-2 text-sm font-medium text-text dark:text-text-dark">
+            {uk ? "Одиниці ваги" : "Weight units"}
+          </Text>
+          <View className="mb-6 flex-row gap-3">
+            {(["kg", "lb"] as const).map((u) => (
+              <Pressable
+                key={u}
+                onPress={() => {
+                  hapticSelect();
+                  setUnit(u);
+                  setMsg(null);
+                }}
+                className={`flex-1 items-center rounded-2xl py-4 ${
+                  unit === u ? "bg-primary" : "bg-surface dark:bg-surface-dark"
+                }`}
+              >
+                <Text className={`font-semibold ${unit === u ? "text-white" : "text-text dark:text-text-dark"}`}>
+                  {u === "kg"
+                    ? uk ? "Кілограми (кг)" : "Kilograms (kg)"
+                    : uk ? "Фунти (lb)" : "Pounds (lb)"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
           <Text className="text-xl font-bold text-text dark:text-text-dark">{t("profile.data")}</Text>
 
@@ -242,7 +296,9 @@ export default function ProfileScreen() {
             style={{ color: c.text }}
           />
 
-          <Text className={labelClass}>{t("profile.weight")}</Text>
+          <Text className={labelClass}>
+            {t("profile.weight")} ({unitLabel(unit, locale)})
+          </Text>
           <TextInput
             value={weight}
             onChangeText={(v) => { setWeight(v.replace(",", ".").replace(/[^0-9.]/g, "")); setMsg(null); }}

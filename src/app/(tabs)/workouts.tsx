@@ -30,7 +30,6 @@ export default function WorkoutsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-background-dark" edges={["top"]}>
-      {/* Обмеження ширини для вебу: на телефоні нічого не змінює */}
       <View style={{ flex: 1, width: "100%", maxWidth: 720, alignSelf: "center" }}>
         <Text className="px-4 pb-3 pt-2 text-3xl font-bold text-text dark:text-text-dark">
           Вправи
